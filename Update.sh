@@ -184,3 +184,5 @@ unset packageManager
 unset checkFile
 clean
 ######Clean Environment Variables End######
+
+exit 0
