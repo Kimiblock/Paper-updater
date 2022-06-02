@@ -1,7 +1,7 @@
 #!/bin/bash
 ######User Settings Start######
-#export version=1.18.2
-#export serverPath=/mnt/main/Cache/Paper
+export version=1.18.2
+export serverPath=/mnt/main/Cache/Paper
 ######User Settings End######
 
 echo "Hello! `whoami` at `date`"
@@ -38,6 +38,7 @@ checkConfig(){
 function clean(){
     if [ -f *.jar ]; then
         rm -rf *.jar
+        rm -rf *.check
     fi
 }
 #moveFile
@@ -55,11 +56,12 @@ function versionCompare(){
     else
         checkPath="${serverPath}"
     fi
-    diff -q '${checkPath}/${checkFile}' '${checkFile}'
+    diff -q "${checkPath}/${checkFile}" "${checkFile}"
     return $?
 }
 #integrityProtect
 function integrityProtect(){
+    echo "Verifing ${checkFile}"
     if [ ${isPlugin} = false ]; then
         checkFile=Paper-latest.jar
         wget $url
@@ -67,29 +69,34 @@ function integrityProtect(){
         diff -q Paper-latest.jar.check Paper-latest.jar
         return $?
     else
-        mv $checkFile ${checkFile.check}
+        mv $checkFile "${checkFile}.check"
         wget $url
-        diff -q $checkFile ${checkFile.check}
+        diff -q $checkFile "${checkFile}.check"
+        return $?
     fi
     if [ $? = 1 ]; then
+        echo "Checking job done, repairing ${checkFile}."
         redownload
+    else
+        echo "Ckecking job done, ${ckeckFile} verified."
+        rm -rf *.check
     fi
 }
 function redownload(){
+    clean
     if [ ${isPlugin} = false ]; then
-        clean
         checkFile=Paper-latest.jar
         wget $url
         mv paper-*.*.*.jar Paper-latest.jar
         integrityProtect
     else
-        clean
         wget $url
         integrityProtect
     fi
 }
 #pluginUpdate
 function pluginUpdate(){
+    echo "Updating ${checkFile}"
     if [ $@ = Floodgate ]; then
         export pluginName=Floodgate
         export url="https://ci.opencollab.dev/job/GeyserMC/job/Floodgate/job/master/lastSuccessfulBuild/artifact/spigot/target/floodgate-spigot.jar"
@@ -102,9 +109,32 @@ function pluginUpdate(){
 
     wget $url
     export isPlugin=true
-    export checkFile="${pluginName}"
+    #export checkFile="${pluginName}"
 }
-
+#systemUpdate
+function systemUpdate(){
+    if [ `whoami` = root ]; then
+        detectPackageManager
+        if [ $? = apt ]; then
+            apt -y full-upgrade
+        elif [ $? = dnf ]; then
+            dnf -y dnf update
+        elif [ $? = pacman ]; then
+            pacman --noconfirm -Syyu
+        else
+            unset packageManager
+            echo "Package Manager not found! Enter command to   update or type 'skip' to skip"
+            read packageManager
+            if [ ! ${packageManager} = skip ]; then
+                ${packageManager}
+            else
+                echo "Skipping"
+            fi
+        fi
+    else
+        echo "Update Failed! You are running under `whoami`"
+    fi
+}
 ######Function End######
 
 ######Paper Update Start######
@@ -119,6 +149,7 @@ while [ ! -f paper-*.jar ]; do
     url="https://papermc.io/api/v2/projects/paper/versions/${version}/builds/${build}/downloads/paper-${version}-${build}.jar"
     wget $url
 done
+echo "Downloaded build ${build}."
 if [ -f paper-*.jar ]; then
     mv paper-*.jar Paper-latest.jar
 fi
@@ -152,29 +183,10 @@ clean
 ######Plugin Update End######
 
 ######System Update Start######
-echo "Notice: Script will try to do a full system update"
-if [[ `whoami` = root ]]; then
-    detectPackageManager
-    if [ $? = "apt" ]; then
-        apt -y full-upgrade
-    elif [ $? = "dnf" ]; then
-        dnf -y dnf update
-    elif [ $? = "pacman" ]; then
-        pacman --noconfirm -Syyu
-    else
-        unset packageManager
-        echo "Package Manager not found! Enter command to update or type 'skip' to skip"
-        read packageManager
-        if [ ! ${packageManager} = "skip" ]; then
-            $packageManager
-        else
-            echo "Skipping"
-        fi
-else
-    echo "Update Failed! You are running under `whoami`"
-fi
-######System Update End######
 
+######System Update End######
+echo "Notice: Script will try to do a full system update"
+systemUpdate
 ######Clean Environment Variables Start######
 unset version
 unset serverPath
@@ -184,5 +196,5 @@ unset packageManager
 unset checkFile
 clean
 ######Clean Environment Variables End######
-
+echo "Job done at `date`, have a nice day~"
 exit 0
